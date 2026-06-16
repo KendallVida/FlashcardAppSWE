@@ -48,7 +48,6 @@ class Flashcard:
         self.next_review = (date.today() + timedelta(days=self.interval)).isoformat()
 
     # Answer Checking
-
     def check_answer(self, user_input):
         # Return True if input is correct
         return user_input.strip().lower() == self.answer.strip().lower()
