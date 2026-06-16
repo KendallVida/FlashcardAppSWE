@@ -79,9 +79,6 @@ class Flashcard:
 class BasicCard(Flashcard):
     CARD_TYPE = "Basic"
 
-    def hint(self):
-        return f"Starts with: '{self.answer[0]}'" if self.answer else ""
-
 class MultipleChoiceCard(Flashcard):
     CARD_TYPE = "Multiple Choice"
 
@@ -110,3 +107,51 @@ class MultipleChoiceCard(Flashcard):
         card.easiness = data["easiness"]
         card.next_review = data["next_review"]
         return card
+
+class ClozeCard(Flashcard):
+    CARD_TYPE = "Cloze"
+
+CARD_CLASSES = {"BasicCard": BasicCard,
+                "MultipleChoiceCard": MultipleChoiceCard,
+                "ClozeCard": ClozeCard
+                }
+
+def card_from_dict(data):
+    #Reconstructs correct flashcard subclass from a saved dictionary
+    cls = CARD_CLASSES.get(data.get("type"), BasicCard)
+    return cls.from_dict(data)
+
+class Deck:
+    #Collection of Flashcards object with file persistence
+
+    SAVE_FILE = "flashcard_data.json"
+
+    def __init__(self):
+        self.cards = []
+
+    def add_card(self, card):
+        #Add flashcard to the deck
+        self.cards.append(card)
+
+    def remove_card(self, index):
+        #Remove card at a given list index
+        if 0 <= index < len(self.cards):
+            self.cards.pop(index)
+
+    def due_cards(self):
+        #Return a list of cards that are due for review today
+        return [card for card in self.cards if card.is_due()]
+
+    def save(self):
+        #Serialise cards to JSON file
+        data = [card.to_dict() for card in self.cards]
+        with open(self.SAVE_FILE, "w") as f:
+            json.dump(data, f, indent=2)
+
+    def load(self):
+        #Load cards from JSON file
+        if not os.path.exists(self.SAVE_FILE):
+            return
+        with open(self.SAVE_FILE, "r") as f:
+            data=json.load(f)
+            self.cards = [card_from_dict(d) for d in data]
