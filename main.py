@@ -292,6 +292,8 @@ class ManageView(tk.Frame):
         self.app.deck.save()
         self.refresh_list()
 
+    def open_add_dialog(self):
+        AddCardDialog(self, self.app, self.refresh_list)
 
 class AddCardDialog(tk.Toplevel):
     def __init__(self, parent, app, on_save_callback):
