@@ -172,6 +172,17 @@ FONT_BODY = ("Segoe UI", 12)
 FONT_SMALL = ("Segoe UI", 10)
 FONT_CARD = ("Segoe UI", 14)
 
+def styled_button(parent, text, command, accent=False, danger=False):
+    bg = COLOURS["accent"] if accent else (COLOURS["wrong"] if danger else COLOURS["button_bg"])
+    return tk.Button(
+        parent, text=text, command=command,
+        bg=bg, fg=COLOURS["text"],
+        font = FONT_BODY, relief="flat",
+        padx=16, pady=8, cursor="hand2",
+        activebackground=COLOURS["surface"],
+        activeforeground=COLOURS["accent"]
+    )
+
 class App(tk.Tk):
     #Root app window; Manages deck and switches between "Homeview" (shows stats and navigation), "Manageview" (add/delete cards), and "ReviewView" (review due cards)
     def __init__(self):
@@ -210,6 +221,29 @@ class HomeView(tk.Frame):
     def __init__(self, parent, app):
         super().__init__(parent, bg=COLOURS["bg"])
         self.app = app
+        self._build()
+
+    def _build(self):
+        #Title
+        tk.Label(self, text="Flashcards", font=FONT_TITLE, bg=COLOURS["bg"], fg=COLOURS["accent"]).pack(pady=(36,4))
+
+        #Stats panel
+        stats_frame = tk.Frame(self, bg=COLOURS["surface"], padx=24, pady=16)
+        stats_frame.pack(pady=28, ipadx=10)
+        total = len(self.app.deck.cards)
+        due = len(self.app.deck.due_cards())
+        new = sum(1 for c in self.app.deck.cards if c.repetitions == 0)
+        self._stat_row(stats_frame, "total cards", total, COLOURS["text"], 0)
+        self._stat_row(stats_frame, "due today", due, COLOURS["accent"], 1)
+        self._stat_row(stats_frame, "new (unseen)", new, COLOURS["accent2"], 2)
+
+        #Navigation
+        styled_button(self, "start review", self.app.show_review, accent=True).pack(pady=(0,12))
+        styled_button(self, "manage_cards", self.app.show_manage).pack()
+
+    def _stat_row(self, parent, label, value, colour, row):
+        tk.Label(parent, text=label, font=FONT_BODY, bg=COLOURS["surface"], fg=COLOURS["muted"]).grid(row=row, column=0)
+        tk.Label(parent, text=str(value), font=("Segoe UI", 12, "bold"), bg=COLOURS["surface"], fg=colour).grid(row=row, column=1, sticky="e")
 
 class ManageView(tk.Frame):
     def __init__(self, parent, app):
@@ -232,4 +266,3 @@ def main():
 
     if __name__ == "__main__":
         main()
-
