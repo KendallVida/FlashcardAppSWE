@@ -1,5 +1,4 @@
 import json
-import math
 import os
 import tkinter as tk
 from datetime import date, timedelta
@@ -162,7 +161,7 @@ COLOURS = {
     "accent": "#7c6af7",   #accent colour
     "correct": "#56cfb2",  #green for correct
     "wrong": "#e06c75",    #red for incorrect
-    "text": "#cdd6f4",     #main text
+    "text": "#000000",     #main text
     "muted": "#6c7086",    #secondary text
     "button_bg": "#3b3b52" #button background
 }
@@ -239,7 +238,7 @@ class Home(tk.Frame):
 
         #Navigation
         styled_button(self, "start review", self.app.show_review, accent=True).pack(pady=(0,12))
-        styled_button(self, "manage_cards", self.app.show_manage).pack()
+        styled_button(self, "manage cards", self.app.show_manage).pack()
 
     def stat_row(self, parent, label, value, colour, row):
         tk.Label(parent, text=label, font=FONT_BODY, bg=COLOURS["surface"], fg=COLOURS["muted"]).grid(row=row, column=0)
@@ -266,8 +265,7 @@ class ManageView(tk.Frame):
         tree_frame.pack(fill="both", expand=True, padx=20)
         style = ttk.Style()
         style.theme_use("clam")
-        style.configure("Custom.Treeview", background=COLOURS["surface"], foreground=COLOURS["text"],
-                        fieldbackground=COLOURS["surface"], rowheight=28, font=FONT_SMALL)
+        style.configure("Custom.Treeview", background=COLOURS["surface"], foreground=COLOURS["text"],fieldbackground=COLOURS["surface"], rowheight=28, font=FONT_SMALL)
         style.configure("Custom.Treeview.Heading", background=COLOURS["button_bg"], foreground=COLOURS["accent"], font=("Segoe UI", 10, "bold"))
         self.tree = ttk.Treeview(tree_frame, columns=("type", "question", "due"), show="headings", style="Custom.Treeview", height=10)
         self.tree.heading("type", text="type")
@@ -276,6 +274,7 @@ class ManageView(tk.Frame):
         self.tree.column("type", width=130, anchor="w")
         self.tree.column("question", width=360, anchor="w")
         self.tree.column("due", width=100, anchor="center")
+        self.tree.pack(fill="both", expand=True)
         self.refresh_list()
 
         #Bottom action row
