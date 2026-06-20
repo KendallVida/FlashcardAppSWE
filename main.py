@@ -419,6 +419,126 @@ class ReviewView(tk.Frame):
     def __init__(self, parent, app):
         super().__init__(parent, bg=COLOURS["bg"])
         self.app = app
+        self.queue = app.deck.due_cards()
+        self.index = 0  # position in the review queue
+        self.build()
+        self.load_card()
+
+    def build(self):
+        self.build_header()
+        self.build_card_panel()
+        self.build_action_buttons()
+
+    def build_header(self): #Build the top bar with the progress label and Home button.
+        header = tk.Frame(self, bg=COLOURS["bg"])
+        header.pack(fill="x", padx=20, pady=(16, 0))
+        self.progress_label = tk.Label(header, text="", font=FONT_SMALL,
+                                       bg=COLOURS["bg"], fg=COLOURS["muted"])
+        self.progress_label.pack(side="left")
+        styled_button(header, "← Home",
+                      self.app.show_home).pack(side="right")
+
+    def build_card_panel(self):
+        self.card_frame = tk.Frame(self, bg=COLOURS["surface"],padx=28, pady=24)
+        self.card_frame.pack(fill="both", expand=True, padx=24, pady=16)
+        self.type_label = tk.Label(self.card_frame, text="", font=FONT_SMALL, bg=COLOURS["surface"], fg=COLOURS["muted"])
+        self.type_label.pack(anchor="w")
+        self.question_label = tk.Label(self.card_frame, text="", font=FONT_CARD, wraplength=580, bg=COLOURS["surface"], fg=COLOURS["text"], justify="left")
+        self.question_label.pack(anchor="w", pady=(8, 16))
+
+        # Text entry for Basic and Cloze cards
+        self.answer_var = tk.StringVar()
+        self.answer_entry = tk.Entry(self.card_frame, textvariable=self.answer_var, font=FONT_BODY, bg=COLOURS["bg"], fg=COLOURS["text"],insertbackground=COLOURS["text"],relief="flat")
+        self.answer_entry.pack(fill="x", ipady=6)
+        self.answer_entry.bind("<Return>", lambda e: self.submit())
+
+        # Container for multiple choice option buttons
+        self.mc_frame = tk.Frame(self.card_frame, bg=COLOURS["surface"])
+        self.mc_frame.pack(fill="x", pady=4)
+        self.feedback_label = tk.Label(self.card_frame, text="", font=("Segoe UI", 12, "bold"), bg=COLOURS["surface"], fg=COLOURS["text"])
+        self.feedback_label.pack(pady=(12, 0))
+        self.reveal_label = tk.Label(self.card_frame, text="", font=FONT_SMALL, wraplength=540, bg=COLOURS["surface"], fg=COLOURS["muted"])
+        self.reveal_label.pack()
+
+    def build_action_buttons(self):
+        self.action_frame = tk.Frame(self, bg=COLOURS["bg"])
+        self.action_frame.pack(pady=8)
+        self.submit_btn = styled_button(self.action_frame, "Submit Answer", self.submit, accent=True)
+        self.submit_btn.pack(side="left", padx=4)
+
+        # Rating buttons shown only after an answer is submitted
+        self.easy_btn = styled_button(self.action_frame, "Easy",lambda: self.rate(5))
+        self.hard_btn = styled_button(self.action_frame, "Hard",lambda: self.rate(3))
+        self.wrong_btn = styled_button(self.action_frame, "Wrong",lambda: self.rate(1), danger=True)
+
+    def load_card(self): #Display current card or show completion screen
+        if not self.queue:
+            self.show_no_due()
+            return
+        if self.index >= len(self.queue):
+            self.show_complete()
+            return
+
+        card = self.queue[self.index]
+        self.progress_label.config(text=f"Card {self.index + 1} of {len(self.queue)}")
+
+        # Clear previous state
+        self.answer_var.set("")
+        self.feedback_label.config(text="")
+        self.reveal_label.config(text="")
+        for widget in self.mc_frame.winfo_children():
+            widget.destroy()
+        card_type = getattr(card, "CARD_TYPE", "Basic")
+        self.type_label.config(text=card_type.upper())
+        self.question_label.config(text=card.question)
+        if isinstance(card, MultipleChoiceCard):
+            self.answer_entry.pack_forget()
+            self.build_mc_buttons(card)
+        else:
+            self.answer_entry.pack(fill="x", ipady=6)
+            self.answer_entry.focus()
+        self.submit_btn.pack(side="left", padx=4)
+        self.easy_btn.pack_forget()
+        self.hard_btn.pack_forget()
+        self.wrong_btn.pack_forget()
+
+    def build_mc_buttons(self, card): #Create 1 button per choice for mc card
+        for choice in card.choices:
+            # Each button sets answer and submits on click
+            btn = tk.Button(self.mc_frame, text=choice, font=FONT_SMALL, relief="flat", bg=COLOURS["button_bg"], fg=COLOURS["text"],padx=10, pady=5, cursor="hand2",
+                            command=lambda c=choice: self.mc_select(c), activebackground=COLOURS["surface"], activeforeground=COLOURS["accent"])
+            btn.pack(fill="x", pady=2)
+
+    def mc_select(self, choice):
+        self.answer_var.set(choice)
+        self.submit()
+
+    def submit(self):
+        user_input = self.answer_var.get().strip()
+        if not user_input:
+            return
+
+        card = self.queue[self.index]
+        correct = card.check_answer(user_input)
+
+        if correct:
+            self.feedback_label.config(text="✓  Correct!", fg=COLOURS["accent2"])
+        else:
+            self.feedback_label.config(text="✗  Incorrect", fg=COLOURS["wrong"])
+            self.reveal_label.config(text=f"Answer: {card.answer}")
+
+        # Switch to rating buttons
+        self.submit_btn.pack_forget()
+        self.easy_btn.pack(side="left", padx=4)
+        self.hard_btn.pack(side="left", padx=4)
+        self.wrong_btn.pack(side="left", padx=4)
+
+    def rate(self, quality): #Apply SM-2, save, and move to next card
+        card = self.queue[self.index]
+        card.update_schedule(quality)
+        self.app.deck.save()
+        self.index += 1
+        self.load_card()
 
 def main():
     app = App()
