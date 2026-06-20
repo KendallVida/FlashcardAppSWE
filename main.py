@@ -6,6 +6,10 @@ from datetime import date, timedelta
 from tkinter import messagebox, ttk
 
 class Flashcard:
+    """
+    Base class for all flashcard types
+    Stores question, answer, scheduling data (done using the SM-2 algorithm) and optional tags applied by the user
+    """
     def __init__(self, question, answer, tags=""):
         #Card content
         self.question = question
@@ -18,8 +22,7 @@ class Flashcard:
         self.easiness = 2.5     # Difficulty multiplier (min 1.3)
         self.next_review = date.today().isoformat()
 
-    #  Scheduling
-
+    #Scheduling
     def is_due(self):
         return date.today() >= date.fromisoformat(self.next_review) # Return true if card is due for review today
 
@@ -38,17 +41,17 @@ class Flashcard:
             self.repetitions = 0
             self.interval = 1
 
-        # Adjust how easy card is based on recall quality using SM-2 Formula:
-        #EF' = EF+(0.1-(5-q) * (0.08+(5-q) * 0.02))
+        #Adjust how easy card is based on recall quality using SM-2 Formula:
+        #EF' = EF+(0.1-(5-q) * (0.08+(5-q) * 0.02)) - SM-2 FORMULA
         self.easiness = max(1.3, self.easiness + 0.1 - (5 - quality) * (0.08 + (5 - quality) * 0.02))
         self.next_review = (date.today() + timedelta(days=self.interval)).isoformat()
 
-    # Answer Checking
+    #Answer Checking
     def check_answer(self, user_input):
         # Return True if input is correct
         return user_input.strip().lower() == self.answer.strip().lower()
 
-    # Convert to/from plain dict to JSON
+    #Convert to/from plain dict to JSON for storage
 
     def to_dict(self):
         return {
@@ -71,10 +74,10 @@ class Flashcard:
         card.next_review = data["next_review"]
         return card
 
-class BasicCard(Flashcard):
+class BasicCard(Flashcard): #Simple question and answer card
     CARD_TYPE = "Basic"
 
-class MultipleChoiceCard(Flashcard):
+class MultipleChoiceCard(Flashcard): #Multiple choice card with list of options
     CARD_TYPE = "Multiple Choice"
 
     def __init__(self, question, answer, choices, tags=""):
@@ -90,7 +93,7 @@ class MultipleChoiceCard(Flashcard):
         return data
 
     @classmethod
-    def from_dict(cls, data):
+    def from_dict(cls, data): #Reconstructs MC card from saved dictionary
         card = cls(
             data["question"],
             data["answer"],
@@ -103,7 +106,7 @@ class MultipleChoiceCard(Flashcard):
         card.next_review = data["next_review"]
         return card
 
-class ClozeCard(Flashcard):
+class ClozeCard(Flashcard): #A "fill in the blanks" card which contains "____" where the answer should be placed
     CARD_TYPE = "Cloze"
 
 CARD_CLASSES = {"BasicCard": BasicCard,
@@ -117,7 +120,7 @@ def card_from_dict(data):
     return cls.from_dict(data)
 
 class Deck:
-    #Collection of Flashcards object with file persistence
+    #A collection of flashcard objects with file persistence
 
     SAVE_FILE = "flashcard_data.json"
 
@@ -144,12 +147,14 @@ class Deck:
             json.dump(data, f, indent=2)
 
     def load(self):
-        #Load cards from JSON file
+        #Load cards from JSON file (if exists)
         if not os.path.exists(self.SAVE_FILE):
             return
         with open(self.SAVE_FILE, "r") as f:
             data=json.load(f)
             self.cards = [card_from_dict(d) for d in data]
+
+#GUI LAYER
 
 COLOURS = {
     "bg": "#1e1e2e",       #dark background
@@ -167,7 +172,7 @@ FONT_BODY = ("Segoe UI", 12)
 FONT_SMALL = ("Segoe UI", 10)
 FONT_CARD = ("Segoe UI", 14)
 
-def styled_button(parent, text, command, accent=False, danger=False):
+def styled_button(parent, text, command, accent=False, danger=False): #Returns a consistently styled tkinter button, simplifying creation and ensuring consistency in the program
     bg = COLOURS["accent"] if accent else (COLOURS["wrong"] if danger else COLOURS["button_bg"])
     return tk.Button(
         parent, text=text, command=command,
@@ -179,11 +184,11 @@ def styled_button(parent, text, command, accent=False, danger=False):
     )
 
 class App(tk.Tk):
-    #Root app window; Manages deck and switches between "Homeview" (shows stats and navigation), "Manageview" (add/delete cards), and "ReviewView" (review due cards)
+    #Root app window; Manages deck and switches between "Home" (shows stats and navigation), "Manageview" (add/delete cards), and "Reviewview" (review due cards)
     def __init__(self):
         super().__init__()
         self.title("Flashcard App")
-        self.geometry("700x520") #Temporary; Done for now to allow for easier formatting as final UI configuration is decided as ratios between components is constant
+        self.geometry("700x520") #Done to make initial layout development easier
         self.resizable(False, False)
         self.configure(bg=COLOURS["bg"])
         self.deck = Deck()
@@ -193,23 +198,26 @@ class App(tk.Tk):
         self.show_home()
 
     #View Switching
-    def show_home(self):
+    def show_home(self): #Replace current view with Homepage
         self.clear()
         Home(self.container, self).pack(fill="both", expand=True)
 
-    def show_manage(self):
+    def show_manage(self): #Replace current view with Manageview
         self.clear()
         ManageView(self.container, self).pack(fill="both", expand=True)
 
-    def show_review(self):
+    def show_review(self): #Replace current view with Reviewview
         self.clear()
         ReviewView(self.container, self).pack(fill="both", expand=True)
 
-    def clear(self):
+    def clear(self): #Destroy all widgets in frame
         for widget in self.container.winfo_children():
             widget.destroy()
 
 class Home(tk.Frame):
+    """
+    Home screen showing deck statistics and navigation
+    """
     def __init__(self, parent, app):
         super().__init__(parent, bg=COLOURS["bg"])
         self.app = app
@@ -238,19 +246,22 @@ class Home(tk.Frame):
         tk.Label(parent, text=str(value), font=("Segoe UI", 12, "bold"), bg=COLOURS["surface"], fg=colour).grid(row=row, column=1, sticky="e")
 
 class ManageView(tk.Frame):
+    """
+    Card management screen. Allows users to view card list, add new cards, and delete existing ones
+    """
     def __init__(self, parent, app):
         super().__init__(parent, bg=COLOURS["bg"])
         self.app = app
         self.build()
 
-    def build(self):
+    def build(self): #build screen layout
         #Header
         header = tk.Frame(self, bg=COLOURS["bg"])
         header.pack(fill="x", padx=20, pady=(20, 10))
         tk.Label(header, text="manage cards", font=FONT_TITLE, bg=COLOURS["bg"], fg=COLOURS["text"]).pack(side="left")
         styled_button(header, "home", self.app.show_home).pack(side="right")
 
-        #Card List
+        #Card List (using treeview)
         tree_frame = tk.Frame(self, bg=COLOURS["bg"])
         tree_frame.pack(fill="both", expand=True, padx=20)
         style = ttk.Style()
@@ -267,7 +278,7 @@ class ManageView(tk.Frame):
         self.tree.column("due", width=100, anchor="center")
         self.refresh_list()
 
-        #Bottom row
+        #Bottom action row
         action_row = tk.Frame(self, bg=COLOURS["bg"])
         action_row.pack(pady=12, padx=20, fill="x")
         styled_button(action_row, "add card", self.open_add_dialog, accent=True).pack(side="left")
@@ -276,11 +287,10 @@ class ManageView(tk.Frame):
     def refresh_list(self): #Clear card list and fill with cards from deck
         for row in self.tree.get_children():
             self.tree.delete(row)
-
         for card in self.app.deck.cards:
             due_str = "Today" if card.is_due() else card.next_review
             card_type = getattr(card, "CARD_TYPE", "Basic")
-            self.tree.insert(" ", "end", values=(card_type, card.question[:55], due_str))
+            self.tree.insert("", "end", values=(card_type, card.question[:55], due_str))
 
     def delete_selected(self): #Remove selected card from deck and save
         selected = self.tree.selection()
@@ -292,10 +302,14 @@ class ManageView(tk.Frame):
         self.app.deck.save()
         self.refresh_list()
 
-    def open_add_dialog(self):
+    def open_add_dialog(self): #Open window to add dialog to card
         AddCardDialog(self, self.app, self.refresh_list)
 
 class AddCardDialog(tk.Toplevel):
+    """
+    Dialog for creating a new flashcard.
+    Form changes based on the selected card type
+    """
     def __init__(self, parent, app, on_save_callback):
         super().__init__(parent)
         self.app = app
@@ -312,7 +326,7 @@ class AddCardDialog(tk.Toplevel):
         tk.Label(self, text="Add New Card", font=FONT_TITLE,
                  bg=COLOURS["bg"], fg=COLOURS["accent"]).pack(pady=(20, 12))
 
-        # Card type selector
+        #Card type selector
         type_frame = tk.Frame(self, bg=COLOURS["bg"])
         type_frame.pack(pady=(0, 10))
         tk.Label(type_frame, text="Card Type:", font=FONT_BODY,bg=COLOURS["bg"], fg=COLOURS["text"]).pack(side="left", padx=6)
@@ -322,21 +336,23 @@ class AddCardDialog(tk.Toplevel):
         self.form_frame = tk.Frame(self, bg=COLOURS["bg"])
         self.form_frame.pack(fill="both", expand=True, padx=30)
         self.build_form("Basic")
-        # Save button
+        #Save button
         styled_button(self, "Save Card",self.save, accent=True).pack(pady=14)
 
-    def on_type_change(self, value):
+    def on_type_change(self, value): #Rebuild whenever card type changes
         for widget in self.form_frame.winfo_children():
             widget.destroy()
         self.build_form(value)
 
-    def build_form(self, card_type):
+    def build_form(self, card_type): #Create appropriate input fields based on card type
         ff = self.form_frame
+
+        #Question (all types)
         tk.Label(ff, text="Question:", font=FONT_SMALL, bg=COLOURS["bg"], fg=COLOURS["muted"]).pack(anchor="w", pady=(10, 2))
         self.q_entry = tk.Text(ff, height=3, font=FONT_SMALL, bg=COLOURS["surface"], fg=COLOURS["text"],insertbackground=COLOURS["text"], relief="flat", padx=6, pady=4)
         self.q_entry.pack(fill="x")
 
-        # Choices (Multiple Choice only)
+        #Choices (Multiple Choice only)
         self.choices_frame = None
         self.choice_entries = []
         if card_type == "Multiple Choice":
@@ -347,7 +363,7 @@ class AddCardDialog(tk.Toplevel):
         else:
             self.choices_text = None
 
-        # Answer (all types except MC which derives it from choices)
+        #Answer (all types except MC which derives it from choices)
         if card_type != "Multiple Choice":
             tk.Label(ff, text="Answer:", font=FONT_SMALL, bg=COLOURS["bg"], fg=COLOURS["muted"]).pack(anchor="w", pady=(8, 2))
             self.a_entry = tk.Entry(ff, font=FONT_SMALL, bg=COLOURS["surface"], fg=COLOURS["text"], insertbackground=COLOURS["text"], relief="flat")
@@ -355,12 +371,12 @@ class AddCardDialog(tk.Toplevel):
         else:
             self.a_entry = None
 
-        # Tags
+        #Tags
         tk.Label(ff, text="Tags (optional):", font=FONT_SMALL, bg=COLOURS["bg"], fg=COLOURS["muted"]).pack(anchor="w", pady=(8, 2))
         self.tags_entry = tk.Entry(ff, font=FONT_SMALL, bg=COLOURS["surface"], fg=COLOURS["text"], insertbackground=COLOURS["text"],relief="flat")
         self.tags_entry.pack(fill="x", ipady=4)
 
-    def save(self):
+    def save(self): #Validate inputs and save
         card_type = self.card_type_var.get()
         question = self.q_entry.get("1.0", "end").strip()
         tags = self.tags_entry.get().strip()
@@ -384,38 +400,46 @@ class AddCardDialog(tk.Toplevel):
         self.on_save()
         self.destroy()
 
-    def build_basic_card(self, question, tags):
+    def build_basic_card(self, question, tags): #Construct a BasicCard from the form
         answer = self.a_entry.get().strip()
         if not answer:
             messagebox.showwarning("Missing Field", "Please enter an answer.")
             return None
         return BasicCard(question, answer, tags)
 
-    def build_mc_card(self, question, tags):
+    def build_mc_card(self, question, tags): #Construct a MC Card from the choices text box
         raw = self.choices_text.get("1.0", "end").strip().splitlines()
         choices = [line.lstrip("*").strip() for line in raw if line.strip()]
         correct = [line.lstrip("*").strip()
                    for line in raw if line.strip().startswith("*")]
         if len(choices) < 2:
-            messagebox.showwarning("Not Enough Options",
-                                   "Please enter at least 2 options.")
+            messagebox.showwarning("Not Enough Options","Please enter at least 2 options.")
             return None
         if not correct:
-            messagebox.showwarning("No Correct Answer",
-                                   "Mark the correct answer with * at the start.")
+            messagebox.showwarning("No Correct Answer","Mark the correct answer with * at the start.")
             return None
         return MultipleChoiceCard(question, correct[0], choices, tags)
 
-    def build_cloze_card(self, question, tags):
+    def build_cloze_card(self, question, tags): #Construct a ClozeCard from the form
         answer = self.a_entry.get().strip()
         if not answer:
-            messagebox.showwarning("Missing Field",
-                                   "Please enter the missing word/phrase.")
+            messagebox.showwarning("Missing Field","Please enter the missing word/phrase.")
             return None
         return ClozeCard(question, answer, tags)
 
 
 class ReviewView(tk.Frame):
+    """
+    Review session screen.
+    Steps through due cards one at a time using SM-2 algorithm
+    Flow for each card:
+    1) Show question (and choices for MC)
+    2) User submits answer
+    3) Shows correct/incorrect
+    4) User rates difficulty (1-3 maps to quality 5,3,1)
+    5) Card is updated and saved
+    6) Next card is loaded
+    """
     def __init__(self, parent, app):
         super().__init__(parent, bg=COLOURS["bg"])
         self.app = app
@@ -424,12 +448,12 @@ class ReviewView(tk.Frame):
         self.build()
         self.load_card()
 
-    def build(self):
+    def build(self): #Create permanent widgets for review screen
         self.build_header()
         self.build_card_panel()
         self.build_action_buttons()
 
-    def build_header(self): #Build the top bar with the progress label and Home button.
+    def build_header(self): #Build the top bar with the progress label and Home button
         header = tk.Frame(self, bg=COLOURS["bg"])
         header.pack(fill="x", padx=20, pady=(16, 0))
         self.progress_label = tk.Label(header, text="", font=FONT_SMALL,
@@ -438,7 +462,7 @@ class ReviewView(tk.Frame):
         styled_button(header, "← Home",
                       self.app.show_home).pack(side="right")
 
-    def build_card_panel(self):
+    def build_card_panel(self): #Build card display area - type label, question, input, feedback
         self.card_frame = tk.Frame(self, bg=COLOURS["surface"],padx=28, pady=24)
         self.card_frame.pack(fill="both", expand=True, padx=24, pady=16)
         self.type_label = tk.Label(self.card_frame, text="", font=FONT_SMALL, bg=COLOURS["surface"], fg=COLOURS["muted"])
@@ -446,13 +470,13 @@ class ReviewView(tk.Frame):
         self.question_label = tk.Label(self.card_frame, text="", font=FONT_CARD, wraplength=580, bg=COLOURS["surface"], fg=COLOURS["text"], justify="left")
         self.question_label.pack(anchor="w", pady=(8, 16))
 
-        # Text entry for Basic and Cloze cards
+        #Text entry for Basic and Cloze cards
         self.answer_var = tk.StringVar()
         self.answer_entry = tk.Entry(self.card_frame, textvariable=self.answer_var, font=FONT_BODY, bg=COLOURS["bg"], fg=COLOURS["text"],insertbackground=COLOURS["text"],relief="flat")
         self.answer_entry.pack(fill="x", ipady=6)
         self.answer_entry.bind("<Return>", lambda e: self.submit())
 
-        # Container for multiple choice option buttons
+        #Container for multiple choice option buttons
         self.mc_frame = tk.Frame(self.card_frame, bg=COLOURS["surface"])
         self.mc_frame.pack(fill="x", pady=4)
         self.feedback_label = tk.Label(self.card_frame, text="", font=("Segoe UI", 12, "bold"), bg=COLOURS["surface"], fg=COLOURS["text"])
@@ -466,7 +490,7 @@ class ReviewView(tk.Frame):
         self.submit_btn = styled_button(self.action_frame, "Submit Answer", self.submit, accent=True)
         self.submit_btn.pack(side="left", padx=4)
 
-        # Rating buttons shown only after an answer is submitted
+        #Rating buttons shown only after an answer is submitted
         self.easy_btn = styled_button(self.action_frame, "Easy",lambda: self.rate(5))
         self.hard_btn = styled_button(self.action_frame, "Hard",lambda: self.rate(3))
         self.wrong_btn = styled_button(self.action_frame, "Wrong",lambda: self.rate(1), danger=True)
@@ -482,38 +506,38 @@ class ReviewView(tk.Frame):
         card = self.queue[self.index]
         self.progress_label.config(text=f"Card {self.index + 1} of {len(self.queue)}")
 
-        # Clear previous state
+        #Clear previous state
         self.answer_var.set("")
         self.feedback_label.config(text="")
         self.reveal_label.config(text="")
         for widget in self.mc_frame.winfo_children():
             widget.destroy()
-        card_type = getattr(card, "CARD_TYPE", "Basic")
+        card_type = getattr(card, "CARD_TYPE", "Basic") #Show card type label
         self.type_label.config(text=card_type.upper())
         self.question_label.config(text=card.question)
-        if isinstance(card, MultipleChoiceCard):
+        if isinstance(card, MultipleChoiceCard): #Show appropriate input method
             self.answer_entry.pack_forget()
             self.build_mc_buttons(card)
         else:
             self.answer_entry.pack(fill="x", ipady=6)
             self.answer_entry.focus()
-        self.submit_btn.pack(side="left", padx=4)
+        self.submit_btn.pack(side="left", padx=4) #Show submit, hide rating buttons
         self.easy_btn.pack_forget()
         self.hard_btn.pack_forget()
         self.wrong_btn.pack_forget()
 
     def build_mc_buttons(self, card): #Create 1 button per choice for mc card
         for choice in card.choices:
-            # Each button sets answer and submits on click
+            #Each button sets answer and submits on click
             btn = tk.Button(self.mc_frame, text=choice, font=FONT_SMALL, relief="flat", bg=COLOURS["button_bg"], fg=COLOURS["text"],padx=10, pady=5, cursor="hand2",
                             command=lambda c=choice: self.mc_select(c), activebackground=COLOURS["surface"], activeforeground=COLOURS["accent"])
             btn.pack(fill="x", pady=2)
 
-    def mc_select(self, choice):
+    def mc_select(self, choice): #Handle MC button click
         self.answer_var.set(choice)
         self.submit()
 
-    def submit(self):
+    def submit(self): #Check answer + show feedback and rating buttons
         user_input = self.answer_var.get().strip()
         if not user_input:
             return
@@ -527,7 +551,7 @@ class ReviewView(tk.Frame):
             self.feedback_label.config(text="✗  Incorrect", fg=COLOURS["wrong"])
             self.reveal_label.config(text=f"Answer: {card.answer}")
 
-        # Switch to rating buttons
+        #Switch to rating buttons
         self.submit_btn.pack_forget()
         self.easy_btn.pack(side="left", padx=4)
         self.hard_btn.pack(side="left", padx=4)
@@ -541,7 +565,7 @@ class ReviewView(tk.Frame):
         self.load_card()
 
    #Session end screens
-    def show_complete(self): #Display a session complete message
+    def show_complete(self): #Display session complete message
         self.clear_card_area()
         tk.Label(self.card_frame, text="Session complete!", font=FONT_TITLE, bg=COLOURS["surface"], fg=COLOURS["correct"]).pack(pady=30)
         tk.Label(self.card_frame, text=f"Reviewed {len(self.queue)} card(s).", font=FONT_BODY, bg=COLOURS["surface"], fg=COLOURS["muted"]).pack()
@@ -553,11 +577,10 @@ class ReviewView(tk.Frame):
         tk.Label(self.card_frame, text="Add more cards or come back tomorrow.", font=FONT_BODY, bg=COLOURS["surface"], fg=COLOURS["muted"]).pack()
         styled_button(self, "Back to Home", self.app.show_home, accent=True).pack(pady=16)
 
-    def clear_card_area(self):
+    def clear_card_area(self): #Remove all dynamic widgets from card frame
         for widget in self.card_frame.winfo_children():
             widget.destroy()
         self.action_frame.pack_forget()
-
 
 def main():
     app = App()
