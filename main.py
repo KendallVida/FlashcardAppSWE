@@ -522,7 +522,7 @@ class ReviewView(tk.Frame):
         correct = card.check_answer(user_input)
 
         if correct:
-            self.feedback_label.config(text="✓  Correct!", fg=COLOURS["accent2"])
+            self.feedback_label.config(text="✓  Correct!", fg=COLOURS["correct"])
         else:
             self.feedback_label.config(text="✗  Incorrect", fg=COLOURS["wrong"])
             self.reveal_label.config(text=f"Answer: {card.answer}")
@@ -543,13 +543,13 @@ class ReviewView(tk.Frame):
    #Session end screens
     def show_complete(self): #Display a session complete message
         self.clear_card_area()
-        tk.Label(self.card_frame, text="Session complete!", font=FONT_TITLE, bg=COLOURS["surface"], fg=COLOURS["accent2"]).pack(pady=30)
+        tk.Label(self.card_frame, text="Session complete!", font=FONT_TITLE, bg=COLOURS["surface"], fg=COLOURS["correct"]).pack(pady=30)
         tk.Label(self.card_frame, text=f"Reviewed {len(self.queue)} card(s).", font=FONT_BODY, bg=COLOURS["surface"], fg=COLOURS["muted"]).pack()
         styled_button(self, "Back to Home", self.app.show_home, accent=True).pack(pady=16)
 
     def show_no_due(self): #Display message when no new cards are due
         self.clear_card_area()
-        tk.Label(self.card_frame, text="Nothing due today!", font=FONT_TITLE, bg=COLOURS["surface"], fg=COLOURS["accent2"]).pack(pady=30)
+        tk.Label(self.card_frame, text="Nothing due today!", font=FONT_TITLE, bg=COLOURS["surface"], fg=COLOURS["correct"]).pack(pady=30)
         tk.Label(self.card_frame, text="Add more cards or come back tomorrow.", font=FONT_BODY, bg=COLOURS["surface"], fg=COLOURS["muted"]).pack()
         styled_button(self, "Back to Home", self.app.show_home, accent=True).pack(pady=16)
 
