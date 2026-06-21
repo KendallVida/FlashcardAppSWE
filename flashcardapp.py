@@ -93,7 +93,7 @@ class BasicCard(Flashcard): #Simple question and answer card
 
     @classmethod
     def from_dict(cls, data):
-        card = cls(data["question"], data["answer"], data.get("image_path", ""), data.get("tags", ""))
+        card = cls(data["question"], data["answer"], data.get("tags", ""), data.get("image_path", ""))
         card.interval = data["interval"]
         card.repetitions = data["repetitions"]
         card.easiness = data["easiness"]
