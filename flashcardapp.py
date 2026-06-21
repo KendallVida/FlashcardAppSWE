@@ -24,7 +24,7 @@ class Flashcard:
 
     #Scheduling
     def is_due(self, today=None):
-        today = today or date.today
+        today = today or date.today()
         return today >= date.fromisoformat(self.next_review) # Return true if card is due for review today
 
     def update_schedule(self, quality, today=None):
@@ -64,11 +64,12 @@ class Flashcard:
             "repetitions": self.repetitions,
             "easiness": self.easiness,
             "next_review": self.next_review,
+            "image_path": self.image_path
         }
 
     @classmethod
     def from_dict(cls, data):
-        card = cls(data["question"], data["answer"], data.get("tags", ""))
+        card = cls(data["question"], data["answer"], data.get("tags", ""), data.get("image_path", ""))
         card.interval = data["interval"]
         card.repetitions = data["repetitions"]
         card.easiness = data["easiness"]
@@ -143,7 +144,7 @@ class ClozeCard(Flashcard): #A "fill in the blanks" card which contains "____" w
 
     @classmethod
     def from_dict(cls, data):
-        card = cls(data["question"], data["answer"], data.get("image_path", ""), data.get("tags", ""))
+        card = cls(data["question"], data["answer"], data.get("tags", ""), data.get("image_path", ""))
         card.interval = data["interval"]
         card.repetitions = data["repetitions"]
         card.easiness = data["easiness"]
@@ -186,7 +187,8 @@ class Deck:
 
     def due_cards(self):
         #Return a list of cards that are due for review today
-        return [card for card in self.cards if card.is_due()]
+        today = self.today()
+        return [card for card in self.cards if card.is_due(today)]
 
     def save(self):
         #Serialise cards to JSON file
@@ -209,21 +211,19 @@ class Deck:
             self.streak = data.get("streak", 0)
 
     def record_session(self):
-        today = date.today()
+        today = self.today()
         today_str = today.isoformat()
         if self.last_session_date is None:
             self.streak = 1
         else:
             last = date.fromisoformat(self.last_session_date)
             gap = (today - last).days
-
             if gap == 0: #Already reviewed today - doesn't increment
                 return
             elif gap == 1: #Reviewed yesterday - increase streak
                 self.streak += 1
             else:
                 self.streak = 1 #Missed day - streak reset
-
         self.last_session_date = today_str
         self.save()
 
@@ -314,10 +314,39 @@ class Home(tk.Frame):
         #Navigation
         styled_button(self, "start review", self.app.show_review, accent=True).pack(pady=(0,12))
         styled_button(self, "manage cards", self.app.show_manage).pack()
+        self.build_debug_panel()
 
     def stat_row(self, parent, label, value, colour, row):
         tk.Label(parent, text=label, font=FONT_BODY, bg=COLOURS["surface"], fg=COLOURS["muted"]).grid(row=row, column=0)
         tk.Label(parent, text=str(value), font=("Segoe UI", 12, "bold"), bg=COLOURS["surface"], fg=colour).grid(row=row, column=1, sticky="e")
+
+    def build_debug_panel(self): #Collapsable debug panel for shifting the simulated date
+        debug_frame = tk.Frame(self, bg=COLOURS["bg"])
+        debug_frame.pack(pady=(8, 0))
+        tk.Label(debug_frame, text="Debug - simulated date:", font=FONT_SMALL, bg=COLOURS["bg"], fg=COLOURS["muted"]).pack(side="left", padx=(0,6))
+        #Show the active date
+        active = self.app.deck.today()
+        self.debug_date_label = tk.Label(debug_frame, text=active.isoformat(), font=FONT_SMALL, bg=COLOURS["bg"], fg=COLOURS["accent"] if self.app.deck.debug_date else COLOURS["muted"])
+        self.debug_date_label.pack(side="left", padx=(0,8))
+
+        styled_button(debug_frame, "- Day", lambda: self.shift_date(-1)).pack(side="left", padx=2)
+        styled_button(debug_frame, "+ Day", lambda: self.shift_date(1)).pack(side="left", padx=2)
+        styled_button(debug_frame, "Reset", lambda: self.reset_date).pack(side="left", padx=2)
+
+    def shift_date(self, days): #Move simulated time forward or back by given number of days
+        current = self.app.deck.today()
+        self.app.deck.debug_date = current + timedelta(days=days)
+        self.refresh_debug_label()
+        self.app.show_home() #Refresh stats to reflect new date
+
+    def reset_date(self): #Clear the debug date override and return to the real date
+        self.app.deck.debug_date = None
+        self.refresh_debug_label()
+        self.app.show_home()
+
+    def refresh_debug_label(self): #Update the displayed date and its colour
+        active = self.app.deck.today()
+        self.debug_date_label.config(text=active.isoformat(), fg=COLOURS["accent"] if self.app.deck.debug_date else COLOURS["muted"])
 
 class ManageView(tk.Frame):
     """
@@ -682,11 +711,12 @@ class ReviewView(tk.Frame):
 
     def rate(self, quality): #Apply SM-2, save, and move to next card
         card = self.queue[self.index]
-        card.update_schedule(quality)
-        self.app.deck.save()
+        card.update_schedule(quality, self.app.deck.today())
         self.index += 1
         if self.index >= len(self.queue): #When on last card, record the session
             self.app.deck.record_session()
+        else:
+            self.app.deck.save()
         self.load_card()
 
    #Session end screens
