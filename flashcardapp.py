@@ -23,10 +23,11 @@ class Flashcard:
         self.next_review = date.today().isoformat()
 
     #Scheduling
-    def is_due(self):
-        return date.today() >= date.fromisoformat(self.next_review) # Return true if card is due for review today
+    def is_due(self, today=None):
+        today = today or date.today
+        return today >= date.fromisoformat(self.next_review) # Return true if card is due for review today
 
-    def update_schedule(self, quality):
+    def update_schedule(self, quality, today=None):
         if quality >= 3:
             # Correct
             if self.repetitions == 0:
@@ -44,7 +45,7 @@ class Flashcard:
         #Adjust how easy card is based on recall quality using SM-2 Formula:
         #EF' = EF+(0.1-(5-q) * (0.08+(5-q) * 0.02)) - SM-2 FORMULA
         self.easiness = max(1.3, self.easiness + 0.1 - (5 - quality) * (0.08 + (5 - quality) * 0.02))
-        self.next_review = (date.today() + timedelta(days=self.interval)).isoformat()
+        self.next_review = (today + timedelta(days=self.interval)).isoformat()
 
     #Answer Checking
     def check_answer(self, user_input):
@@ -168,6 +169,11 @@ class Deck:
         self.cards = []
         self.last_session_date = None
         self.streak = 0
+        self.debug_date = None
+
+    def today(self):
+        #Return current date, or debug date if one is set
+        return self.debug_date if self.debug_date else date.today()
 
     def add_card(self, card):
         #Add flashcard to the deck
@@ -336,13 +342,15 @@ class ManageView(tk.Frame):
         style.theme_use("clam")
         style.configure("Custom.Treeview", background=COLOURS["surface"], foreground=COLOURS["text"],fieldbackground=COLOURS["surface"], rowheight=28, font=FONT_SMALL)
         style.configure("Custom.Treeview.Heading", background=COLOURS["button_bg"], foreground=COLOURS["accent"], font=("Segoe UI", 10, "bold"))
-        self.tree = ttk.Treeview(tree_frame, columns=("type", "question", "due"), show="headings", style="Custom.Treeview", height=10)
+        self.tree = ttk.Treeview(tree_frame, columns=("type", "question", "tags", "due"), show="headings", style="Custom.Treeview", height=10)
         self.tree.heading("type", text="type")
         self.tree.heading("question", text="question")
+        self.tree.heading("tags", text="tags")
         self.tree.heading("due", text="due")
         self.tree.column("type", width=130, anchor="w")
-        self.tree.column("question", width=360, anchor="w")
-        self.tree.column("due", width=100, anchor="center")
+        self.tree.column("question", width=260, anchor="w")
+        self.tree.column("tags", width=100, anchor="center")
+        self.tree.column("due", width=100, anchor="w")
         self.tree.pack(fill="both", expand=True)
         self.refresh_list()
 
@@ -358,7 +366,7 @@ class ManageView(tk.Frame):
         for card in self.app.deck.cards:
             due_str = "Today" if card.is_due() else card.next_review
             card_type = getattr(card, "CARD_TYPE", "Basic")
-            self.tree.insert("", "end", values=(card_type, card.question[:55], due_str))
+            self.tree.insert("", "end", values=(card_type, card.question[:55], card.tags or "-", due_str))
 
     def delete_selected(self): #Remove selected card from deck and save
         selected = self.tree.selection()
@@ -459,20 +467,21 @@ class AddCardDialog(tk.Toplevel):
         self.tags_entry.pack(fill="x", ipady=4)
 
         #Image
-        self.image_path_var = tk.StringVar()
-        image_row = tk.Frame(ff, bg=COLOURS["bg"])
-        image_row.pack(fill="x", pady=(8, 0))
-        tk.Label(image_row, text="Image(optional):", font=FONT_SMALL, bg=COLOURS["bg"], fg=COLOURS["muted"]).pack(
-            side="left")
-        tk.Label(image_row, textvariable=self.image_path_var, font=FONT_SMALL, bg=COLOURS["bg"],
-                 fg=COLOURS["muted"]).pack(side="left", pady=6)
-        styled_button(image_row, "Browse...", self.pick_image).pack(side="left")
+        if card_type != "Multiple Choice":
+            self.image_path_var = tk.StringVar()
+            image_row = tk.Frame(ff, bg=COLOURS["bg"])
+            image_row.pack(fill="x", pady=(8, 0))
+            tk.Label(image_row, text="Image(optional):", font=FONT_SMALL, bg=COLOURS["bg"], fg=COLOURS["muted"]).pack(
+                side="left")
+            tk.Label(image_row, textvariable=self.image_path_var, font=FONT_SMALL, bg=COLOURS["bg"],
+                     fg=COLOURS["muted"]).pack(side="left", pady=6)
+            styled_button(image_row, "Browse...", self.pick_image).pack(side="left")
 
     def save(self): #Validate inputs and save
         card_type = self.card_type_var.get()
         question = self.q_entry.get("1.0", "end").strip()
         tags = self.tags_entry.get().strip()
-        self.image_path_var.get()
+        image_path = self.image_path_var.get()
 
         if not question:
             messagebox.showwarning("Missing Field", "Please enter a question.")
@@ -549,17 +558,17 @@ class ReviewView(tk.Frame):
     def build_header(self): #Build the top bar with the progress label and Home button
         header = tk.Frame(self, bg=COLOURS["bg"])
         header.pack(fill="x", padx=20, pady=(16, 0))
-        self.progress_label = tk.Label(header, text="", font=FONT_SMALL,
-                                       bg=COLOURS["bg"], fg=COLOURS["muted"])
+        self.progress_label = tk.Label(header, text="", font=FONT_SMALL, bg=COLOURS["bg"], fg=COLOURS["muted"])
         self.progress_label.pack(side="left")
-        styled_button(header, "← Home",
-                      self.app.show_home).pack(side="right")
+        styled_button(header, "← Home",self.app.show_home).pack(side="right")
 
     def build_card_panel(self): #Build card display area - type label, question, input, feedback
         self.card_frame = tk.Frame(self, bg=COLOURS["surface"],padx=28, pady=24)
         self.card_frame.pack(fill="both", expand=True, padx=24, pady=16)
         self.type_label = tk.Label(self.card_frame, text="", font=FONT_SMALL, bg=COLOURS["surface"], fg=COLOURS["muted"])
         self.type_label.pack(anchor="w")
+        self.tags_label = tk.Label(self.card_frame, text="", font=FONT_SMALL, bg=COLOURS["surface"], fg=COLOURS["muted"])
+        self.tags_label.pack(anchor="w")
         self.question_label = tk.Label(self.card_frame, text="", font=FONT_CARD, wraplength=580, bg=COLOURS["surface"], fg=COLOURS["text"], justify="left")
         self.question_label.pack(anchor="w", pady=(8, 16))
 
@@ -606,7 +615,8 @@ class ReviewView(tk.Frame):
         for widget in self.mc_frame.winfo_children():
             widget.destroy()
         card_type = getattr(card, "CARD_TYPE", "Basic") #Show card type label
-        self.type_label.config(text=card_type.upper())
+        tag_str = f"   -   {card.tags}" if card.tags else ""
+        self.type_label.config(text=f"{card_type.upper()}{tag_str}")
         self.question_label.config(text=card.question)
         self.show_image(getattr(card, "image_path", "")) #Show image if card has one
         self.question_label.config(text=card.question)
