@@ -2,18 +2,19 @@ import json
 import os
 import tkinter as tk
 from datetime import date, timedelta
-from tkinter import messagebox, ttk
+from tkinter import messagebox, ttk, filedialog
 
 class Flashcard:
     """
     Base class for all flashcard types
     Stores question, answer, scheduling data (done using the SM-2 algorithm) and optional tags applied by the user
     """
-    def __init__(self, question, answer, tags=""):
+    def __init__(self, question, answer, tags="", image_path=""):
         #Card content
         self.question = question
         self.answer = answer
         self.tags = tags
+        self.image_path = image_path #e.g "images/diagram.png
 
         #SM-2 spaced-repetition fields
         self.interval = 1       # Days until next review
@@ -73,8 +74,30 @@ class Flashcard:
         card.next_review = data["next_review"]
         return card
 
+    def content_to_dict(self):
+        return {"image_path": self.image_path}
+
 class BasicCard(Flashcard): #Simple question and answer card
     CARD_TYPE = "Basic"
+
+    def __init__(self, question, answer, tags="", image_path=""):
+        super().__init__(question, answer, tags)
+        self.image_path = image_path
+
+    def to_dict(self):
+        data = super().to_dict()
+        data["image_path"] = self.image_path
+        return data
+
+    @classmethod
+    def from_dict(cls, data):
+        card = cls(data["question"], data["answer"], data.get("image_path", ""), data.get("tags", ""))
+        card.interval = data["interval"]
+        card.repetitions = data["repetitions"]
+        card.easiness = data["easiness"]
+        card.next_review = data["next_review"]
+        return card
+
 
 class MultipleChoiceCard(Flashcard): #Multiple choice card with list of options
     CARD_TYPE = "Multiple Choice"
@@ -107,6 +130,24 @@ class MultipleChoiceCard(Flashcard): #Multiple choice card with list of options
 
 class ClozeCard(Flashcard): #A "fill in the blanks" card which contains "____" where the answer should be placed
     CARD_TYPE = "Cloze"
+
+    def __init__(self, question, answer, tags="", image_path=""):
+        super().__init__(question, answer, tags)
+        self.image_path = image_path
+
+    def to_dict(self):
+        data = super().to_dict()
+        data["image_path"] = self.image_path
+        return data
+
+    @classmethod
+    def from_dict(cls, data):
+        card = cls(data["question"], data["answer"], data.get("image_path", ""), data.get("tags", ""))
+        card.interval = data["interval"]
+        card.repetitions = data["repetitions"]
+        card.easiness = data["easiness"]
+        card.next_review = data["next_review"]
+        return card
 
 CARD_CLASSES = {"BasicCard": BasicCard,
                 "MultipleChoiceCard": MultipleChoiceCard,
@@ -366,6 +407,16 @@ class AddCardDialog(tk.Toplevel):
         #Save button
         styled_button(self, "Save Card",self.save, accent=True).pack(pady=14)
 
+    def pick_image(self):
+        path = filedialog.askopenfilename(parent=self, title="Select image",filetypes=[("Image files", "*.png *.gif")])
+        if path:
+            base_dir = os.path.dirname(os.path.abspath(__file__))
+            try:
+                rel_path = os.path.relpath(path, base_dir)
+                self.image_path_var.set(rel_path)
+            except ValueError:
+                self.image_path_var.set(path)
+
     def on_type_change(self, value): #Rebuild whenever card type changes
         for widget in self.form_frame.winfo_children():
             widget.destroy()
@@ -390,6 +441,10 @@ class AddCardDialog(tk.Toplevel):
         else:
             self.choices_text = None
 
+        #Answer hint label for Cloze
+        if card_type == "Cloze":
+            tk.Label(ff, text="Write ___ in the question where the blank goes", font=FONT_SMALL, bg=COLOURS["bg"], fg=COLOURS["muted"]).pack(anchor="w",pady=(8, 2))
+
         #Answer (all types except MC which derives it from choices)
         if card_type != "Multiple Choice":
             tk.Label(ff, text="Answer:", font=FONT_SMALL, bg=COLOURS["bg"], fg=COLOURS["muted"]).pack(anchor="w", pady=(8, 2))
@@ -403,10 +458,21 @@ class AddCardDialog(tk.Toplevel):
         self.tags_entry = tk.Entry(ff, font=FONT_SMALL, bg=COLOURS["surface"], fg=COLOURS["text"], insertbackground=COLOURS["text"],relief="flat")
         self.tags_entry.pack(fill="x", ipady=4)
 
+        #Image
+        self.image_path_var = tk.StringVar()
+        image_row = tk.Frame(ff, bg=COLOURS["bg"])
+        image_row.pack(fill="x", pady=(8, 0))
+        tk.Label(image_row, text="Image(optional):", font=FONT_SMALL, bg=COLOURS["bg"], fg=COLOURS["muted"]).pack(
+            side="left")
+        tk.Label(image_row, textvariable=self.image_path_var, font=FONT_SMALL, bg=COLOURS["bg"],
+                 fg=COLOURS["muted"]).pack(side="left", pady=6)
+        styled_button(image_row, "Browse...", self.pick_image).pack(side="left")
+
     def save(self): #Validate inputs and save
         card_type = self.card_type_var.get()
         question = self.q_entry.get("1.0", "end").strip()
         tags = self.tags_entry.get().strip()
+        self.image_path_var.get()
 
         if not question:
             messagebox.showwarning("Missing Field", "Please enter a question.")
@@ -432,7 +498,7 @@ class AddCardDialog(tk.Toplevel):
         if not answer:
             messagebox.showwarning("Missing Field", "Please enter an answer.")
             return None
-        return BasicCard(question, answer, tags)
+        return BasicCard(question, answer, tags, self.image_path_var.get())
 
     def build_mc_card(self, question, tags): #Construct a MC Card from the choices text box
         raw = self.choices_text.get("1.0", "end").strip().splitlines()
@@ -452,7 +518,7 @@ class AddCardDialog(tk.Toplevel):
         if not answer:
             messagebox.showwarning("Missing Field","Please enter the missing word/phrase.")
             return None
-        return ClozeCard(question, answer, tags)
+        return ClozeCard(question, answer, tags, self.image_path_var.get())
 
 
 class ReviewView(tk.Frame):
@@ -542,6 +608,8 @@ class ReviewView(tk.Frame):
         card_type = getattr(card, "CARD_TYPE", "Basic") #Show card type label
         self.type_label.config(text=card_type.upper())
         self.question_label.config(text=card.question)
+        self.show_image(getattr(card, "image_path", "")) #Show image if card has one
+        self.question_label.config(text=card.question)
         if isinstance(card, MultipleChoiceCard): #Show appropriate input method
             self.answer_entry.pack_forget()
             self.build_mc_buttons(card)
@@ -552,6 +620,24 @@ class ReviewView(tk.Frame):
         self.easy_btn.pack_forget()
         self.hard_btn.pack_forget()
         self.wrong_btn.pack_forget()
+
+    def show_image(self, image_path): #Display card image if file exists and is a supported format (PNG or GIF)
+        if not image_path or not os.path.exists(image_path):
+            return
+
+        base_dir = os.path.dirname(os.path.abspath(__file__))
+        full_path = os.path.join(base_dir, image_path)
+
+        if not full_path.lower().endswith((".png", ".gif")):
+            tk.Label(self.card_frame, text="Image format not supported. Use PNG or GIF", font=FONT_SMALL, bg=COLOURS["surface"], fg=COLOURS["muted"]).pack()
+            return
+        try:
+            img = tk.PhotoImage(file=full_path)
+            label = tk.Label(self.card_frame, image=img, bg=COLOURS["surface"])
+            label.image = img
+            label.pack(pady=8)
+        except Exception:
+            tk.Label(self.card_frame, text="Could not load image", font=FONT_SMALL, bg=COLOURS["surface"],fg=COLOURS["muted"]).pack()
 
     def build_mc_buttons(self, card): #Create 1 button per choice for mc card
         for choice in card.choices:
