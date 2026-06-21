@@ -591,7 +591,7 @@ class ReviewView(tk.Frame):
         header.pack(fill="x", padx=20, pady=(16, 0))
         self.progress_label = tk.Label(header, text="", font=FONT_SMALL, bg=COLOURS["bg"], fg=COLOURS["muted"])
         self.progress_label.pack(side="left")
-        styled_button(header, "← Home",self.app.show_home).pack(side="right")
+        styled_button(header, "Home",self.app.show_home,accent=True).pack(side="right")
 
     def build_card_panel(self):
         # Outer frame fills available space
