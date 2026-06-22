@@ -11,9 +11,9 @@ class Flashcard:
     """
     def __init__(self, question, answer, tags="", image_path=""):
         #Card content
-        self.question = question
-        self.answer = answer
-        self.tags = tags
+        self.question = question #e.g "What is the capital of Australia?"
+        self.answer = answer #e.g "Canberra"
+        self.tags = tags #e.g "maths, english, physics"
         self.image_path = image_path #e.g "images/diagram.png
 
         #SM-2 spaced-repetition fields
@@ -43,7 +43,7 @@ class Flashcard:
             self.interval = 1
 
         #Adjust how easy card is based on recall quality using SM-2 Formula:
-        #EF' = EF+(0.1-(5-q) * (0.08+(5-q) * 0.02)) - SM-2 FORMULA
+        #EF' = EF+(0.1-(5-q) * (0.08+(5-q) * 0.02))
         self.easiness = max(1.3, self.easiness + 0.1 - (5 - quality) * (0.08 + (5 - quality) * 0.02))
         self.next_review = (today + timedelta(days=self.interval)).isoformat()
 
@@ -53,7 +53,6 @@ class Flashcard:
         return user_input.strip().lower() == self.answer.strip().lower()
 
     #Convert to/from plain dict to JSON for storage
-
     def to_dict(self):
         return {
             "type": self.__class__.__name__,
@@ -92,7 +91,7 @@ class BasicCard(Flashcard): #Simple question and answer card
         return data
 
     @classmethod
-    def from_dict(cls, data):
+    def from_dict(cls, data): #Reconstructs card from saved dictionary
         card = cls(data["question"], data["answer"], data.get("tags", ""), data.get("image_path", ""))
         card.interval = data["interval"]
         card.repetitions = data["repetitions"]
@@ -100,13 +99,12 @@ class BasicCard(Flashcard): #Simple question and answer card
         card.next_review = data["next_review"]
         return card
 
-
 class MultipleChoiceCard(Flashcard): #Multiple choice card with list of options
     CARD_TYPE = "Multiple Choice"
 
     def __init__(self, question, answer, choices, tags=""):
         super().__init__(question, answer, tags)
-        self.choices = choices  # List of options
+        self.choices = choices  # List of possible answer options
 
     def check_answer(self, user_input):
         return user_input.strip().lower() == self.answer.strip().lower()
@@ -316,11 +314,11 @@ class Home(tk.Frame):
         self.stat_row(stats_frame, "Daily Streak", f"{self.app.deck.streak}", "#ffaf4a", 3)
 
         #Navigation
-        styled_button(inner, "start review", self.app.show_review, accent=True).pack(pady=(0,12))
-        styled_button(inner, "manage cards", self.app.show_manage, accent=True).pack()
+        styled_button(inner, "start review", self.app.show_review, accent=True).pack(pady=(0,12)) #Begin flashcard review
+        styled_button(inner, "manage cards", self.app.show_manage, accent=True).pack() #Open Manageview to manage flashcards
         debug_frame = tk.Frame(self, bg=COLOURS["bg"])
         debug_frame.pack(side="bottom", pady=8)
-        self.build_debug_panel()
+        self.build_debug_panel() #Create debug panel at bottom of page
 
     def stat_row(self, parent, label, value, colour, row):
         tk.Label(parent, text=label, font=FONT_BODY, bg=COLOURS["surface"], fg=COLOURS["muted"]).grid(row=row, column=0)
@@ -611,10 +609,6 @@ class ReviewView(tk.Frame):
         self.question_label = tk.Label(self.card_frame, text="", font=FONT_CARD, bg=COLOURS["surface"], fg=COLOURS["text"], justify="left")
         self.question_label.pack(anchor="w", pady=(8, 16), fill="x")
 
-        def update_wraplength(e):
-            self.question_label.config(wraplength=e.width - 56)
-        self.card_frame.bind("<Configure>", update_wraplength)
-
         #Text entry for Basic and Cloze cards
         self.answer_var = tk.StringVar()
         self.answer_entry = tk.Entry(self.card_frame, textvariable=self.answer_var, font=FONT_BODY, bg=COLOURS["bg"], fg=COLOURS["text"],insertbackground=COLOURS["text"],relief="flat")
@@ -628,6 +622,7 @@ class ReviewView(tk.Frame):
         self.feedback_label.pack(pady=(12, 0))
         self.reveal_label = tk.Label(self.card_frame, text="", font=FONT_SMALL, wraplength=540, bg=COLOURS["surface"], fg=COLOURS["muted"])
         self.reveal_label.pack()
+        self.image_label = None
 
     def build_action_buttons(self):
         self.action_frame = tk.Frame(self, bg=COLOURS["bg"])
@@ -675,23 +670,39 @@ class ReviewView(tk.Frame):
         self.wrong_btn.pack_forget()
 
     def show_image(self, image_path): #Display card image if file exists and is a supported format (PNG or GIF)
-        if not image_path or not os.path.exists(image_path):
+        # Destroy previous image label if one exists
+        if self.image_label is not None:
+            self.image_label.destroy()
+            self.image_label = None
+
+        if not image_path:
             return
 
         base_dir = os.path.dirname(os.path.abspath(__file__))
         full_path = os.path.join(base_dir, image_path)
 
+        if not os.path.exists(full_path):
+            return
         if not full_path.lower().endswith((".png", ".gif")):
-            tk.Label(self.card_frame, text="Image format not supported. Use PNG or GIF", font=FONT_SMALL, bg=COLOURS["surface"], fg=COLOURS["muted"]).pack()
+            self.image_label = tk.Label(self.card_frame,
+                                        text="Image format not supported. Use PNG or GIF",
+                                        font=FONT_SMALL, bg=COLOURS["surface"],
+                                        fg=COLOURS["muted"])
+            self.image_label.pack()
             return
         try:
             img = tk.PhotoImage(file=full_path)
-            label = tk.Label(self.card_frame, image=img, bg=COLOURS["surface"])
-            label.image = img
-            label.pack(pady=8)
-        except Exception:
-            tk.Label(self.card_frame, text="Could not load image", font=FONT_SMALL, bg=COLOURS["surface"],fg=COLOURS["muted"]).pack()
+            self.image_label = tk.Label(self.card_frame, image=img,
+                                        bg=COLOURS["surface"])
+            self.image_label.image = img  # keep reference
+            self.image_label.pack(pady=8)
 
+        except Exception:
+            self.image_label = tk.Label(self.card_frame,
+                                        text="Could not load image",
+                                        font=FONT_SMALL, bg=COLOURS["surface"],
+                                        fg=COLOURS["muted"])
+            self.image_label.pack()
     def build_mc_buttons(self, card): #Create 1 button per choice for mc card
         for choice in card.choices:
             #Each button sets answer and submits on click
