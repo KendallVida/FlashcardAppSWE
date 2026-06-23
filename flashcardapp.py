@@ -69,28 +69,7 @@ class Flashcard:
         # Return True if input is correct
         return user_input.strip().lower() == self.answer.strip().lower()
 
-    #Convert to/from plain dict to JSON for storage
-    def to_dict(self):
-        return {
-            "type": self.__class__.__name__,
-            "question": self.question,
-            "answer": self.answer,
-            "tags": self.tags,
-            "interval": self.interval,
-            "repetitions": self.repetitions,
-            "easiness": self.easiness,
-            "next_review": self.next_review,
-            "image_path": self.image_path
-        }
 
-    @classmethod
-    def from_dict(cls, data):
-        card = cls(data["question"], data["answer"], data.get("tags", ""), data.get("image_path", ""))
-        card.interval = data["interval"]
-        card.repetitions = data["repetitions"]
-        card.easiness = data["easiness"]
-        card.next_review = data["next_review"]
-        return card
 
 class BasicCard(Flashcard): #Simple question and answer card
     CARD_TYPE = "Basic"
@@ -98,15 +77,6 @@ class BasicCard(Flashcard): #Simple question and answer card
     def __init__(self, question, answer, tags="", image_path=""):
         super().__init__(question, answer, tags)
         self.image_path = image_path
-
-    @classmethod
-    def from_dict(cls, data): #Reconstructs card from saved dictionary
-        card = cls(data["question"], data["answer"], data.get("tags", ""), data.get("image_path", ""))
-        card.interval = data["interval"]
-        card.repetitions = data["repetitions"]
-        card.easiness = data["easiness"]
-        card.next_review = data["next_review"]
-        return card
 
 class MultipleChoiceCard(Flashcard): #Multiple choice card with list of options
     CARD_TYPE = "Multiple Choice"
@@ -118,40 +88,12 @@ class MultipleChoiceCard(Flashcard): #Multiple choice card with list of options
     def check_answer(self, user_input):
         return user_input.strip().lower() == self.answer.strip().lower()
 
-    def to_dict(self):
-        data = super().to_dict()
-        data["choices"] = self.choices
-        return data
-
-    @classmethod
-    def from_dict(cls, data): #Reconstructs MC card from saved dictionary
-        card = cls(
-            data["question"],
-            data["answer"],
-            data.get("choices", []),
-            data.get("tags", "")
-        )
-        card.interval = data["interval"]
-        card.repetitions = data["repetitions"]
-        card.easiness = data["easiness"]
-        card.next_review = data["next_review"]
-        return card
-
 class ClozeCard(Flashcard): #A "fill in the blanks" card which contains "____" where the answer should be placed
     CARD_TYPE = "Cloze"
 
     def __init__(self, question, answer, tags="", image_path=""):
         super().__init__(question, answer, tags)
         self.image_path = image_path
-
-    @classmethod
-    def from_dict(cls, data):
-        card = cls(data["question"], data["answer"], data.get("tags", ""), data.get("image_path", ""))
-        card.interval = data["interval"]
-        card.repetitions = data["repetitions"]
-        card.easiness = data["easiness"]
-        card.next_review = data["next_review"]
-        return card
 
 class Database:
     """
