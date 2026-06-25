@@ -345,7 +345,7 @@ class DeckSelectView(tk.Frame):
             deck = self.app.db.get_deck(deck_id)
             self.open_deck(deck)
         except sqlite3.IntegrityError:
-            messagebox.showwarning("Duplicate Name", f"A deck called '{name} already exists'")
+            messagebox.showwarning("Duplicate Name", f"A deck called '{name}' already exists")
 
     def delete_deck(self, deck): #Confirm then delete selected deck and all its cards
         confirmed = messagebox.askyesno("Delete Deck",
@@ -375,14 +375,14 @@ class Home(tk.Frame):
         deck_id = self.app.active_deck["id"]
         stats = self.app.db.deck_stats(deck_id)
         streak = self.app.db.get_deck(deck_id)["streak"]
-        self.stat_row(stats_frame, "total cards", stats["total"], COLOURS["text"], 0)
-        self.stat_row(stats_frame, "due today", stats["due"], COLOURS["accent"], 1)
-        self.stat_row(stats_frame, "new (unseen)", stats["new"], COLOURS["correct"], 2)
+        self.stat_row(stats_frame, "Total Cards", stats["total"], COLOURS["text"], 0)
+        self.stat_row(stats_frame, "Due Today", stats["due"], COLOURS["accent"], 1)
+        self.stat_row(stats_frame, "New (unseen)", stats["new"], COLOURS["correct"], 2)
         self.stat_row(stats_frame, "Daily Streak", streak, "#ffaf4a", 3)
         #Navigation
-        styled_button(inner, "start review", self.app.show_review, accent=True).pack(pady=(0,12)) #Begin flashcard review
-        styled_button(inner, "manage cards", self.app.show_manage, accent=True).pack() #Open ManageView to manage flashcards
-        styled_button(inner, "all decks", self.app.show_deck_select, accent=True).pack(pady=(12,0))
+        styled_button(inner, "Start Review", self.app.show_review, accent=True).pack(pady=(0,12)) #Begin flashcard review
+        styled_button(inner, "Manage Cards", self.app.show_manage, accent=True).pack() #Open ManageView to manage flashcards
+        styled_button(inner, "All Decks", self.app.show_deck_select, accent=True).pack(pady=(12,0))
 
         debug_frame = tk.Frame(self, bg=COLOURS["bg"])
         debug_frame.pack(side="bottom", pady=16)
@@ -425,8 +425,8 @@ class ManageView(tk.Frame):
         #Header
         header = tk.Frame(self, bg=COLOURS["bg"])
         header.pack(fill="x", padx=20, pady=(20, 10))
-        tk.Label(header, text="manage cards", font=FONT_TITLE, bg=COLOURS["bg"], fg=COLOURS["text"]).pack(side="left")
-        styled_button(header, "home", self.app.show_home, accent=True).pack(side="right")
+        tk.Label(header, text="Manage Cards", font=FONT_TITLE, bg=COLOURS["bg"], fg=COLOURS["text"]).pack(side="left")
+        styled_button(header, "Home", self.app.show_home, accent=True).pack(side="right")
 
         #Card List (using treeview)
         tree_frame = tk.Frame(self, bg=COLOURS["bg"])
@@ -437,10 +437,10 @@ class ManageView(tk.Frame):
         self.tree = ttk.Treeview(tree_frame, columns=("type", "question", "tags", "due"), show="headings", style="Custom.Treeview", yscrollcommand=scrollbar.set)
         scrollbar.config(command=self.tree.yview)
 
-        self.tree.heading("type", text="type")
-        self.tree.heading("question", text="question")
-        self.tree.heading("tags", text="tags")
-        self.tree.heading("due", text="due")
+        self.tree.heading("type", text="Type")
+        self.tree.heading("question", text="Question")
+        self.tree.heading("tags", text="Tags")
+        self.tree.heading("due", text="Due")
         self.tree.column("type", width=110, anchor="w", minwidth=80)
         self.tree.column("question", width=260, anchor="w", minwidth=120)
         self.tree.column("tags", width=100, anchor="w", minwidth=60)
@@ -451,8 +451,8 @@ class ManageView(tk.Frame):
         #Bottom action row
         action_row = tk.Frame(self, bg=COLOURS["bg"])
         action_row.pack(pady=12, padx=20, fill="x")
-        styled_button(action_row, "add card", self.open_add_dialog, accent=True).pack(side="left")
-        styled_button(action_row, "delete selected", self.delete_selected, danger=True).pack(side="left", padx=8)
+        styled_button(action_row, "Add Card", self.open_add_dialog, accent=True).pack(side="left")
+        styled_button(action_row, "Delete Selected", self.delete_selected, danger=True).pack(side="left", padx=8)
 
     def refresh_list(self): #Clear card list and fill with cards from deck
         for row in self.tree.get_children():
